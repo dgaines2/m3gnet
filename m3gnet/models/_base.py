@@ -14,6 +14,7 @@ from m3gnet.config import DataType
 from m3gnet.graph import Index, MaterialGraph, assemble_material_graph
 from m3gnet.type import StructureOrMolecule
 from m3gnet.utils import register, repeat_with_n
+from tqdm import tqdm
 
 PLATFORM = platform.platform()
 
@@ -38,7 +39,7 @@ class GraphModelMixin(tf.keras.layers.Layer):
         """
         return self.predict_graph(self.graph_converter(structure))
 
-    def predict_structures(self, structures: List[StructureOrMolecule], batch_size: int = 128) -> tf.Tensor:
+    def predict_structures(self, structures: List[StructureOrMolecule], batch_size: int = 128, pbar=False) -> tf.Tensor:
         """
         predict properties from structures
         Args:
@@ -47,7 +48,7 @@ class GraphModelMixin(tf.keras.layers.Layer):
         Returns: predicted values
         """
         graph_list = [self.graph_converter(i) for i in structures]
-        return self.predict_graphs(graph_list, batch_size)
+        return self.predict_graphs(graph_list, batch_size, pbar=pbar)
 
     def predict_graph(self, graph: Union[MaterialGraph, List]) -> tf.Tensor:
         """
@@ -61,7 +62,7 @@ class GraphModelMixin(tf.keras.layers.Layer):
             graph = graph.as_list()
         return self.call(graph)
 
-    def predict_graphs(self, graph_list: List[Union[MaterialGraph, List]], batch_size: int = 128) -> tf.Tensor:
+    def predict_graphs(self, graph_list: List[Union[MaterialGraph, List]], batch_size: int = 128, pbar=False) -> tf.Tensor:
         """
         predict properties from graphs
         Args:
@@ -74,7 +75,10 @@ class GraphModelMixin(tf.keras.layers.Layer):
         use_graph = bool(isinstance(graph_list[0], MaterialGraph))
         n_steps = math.ceil(n / batch_size)
         predicted = []
-        for i in range(n_steps):
+        range_n_steps = range(n_steps)
+        if pbar:
+            range_n_steps = tqdm(range_n_steps)
+        for i in range_n_steps:
             graphs = graph_list[batch_size * i : batch_size * (i + 1)]
             graph = assemble_material_graph(graphs)  # type: ignore
             if use_graph:
