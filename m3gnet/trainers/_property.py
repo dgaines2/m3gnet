@@ -71,6 +71,7 @@ class Trainer:
         verbose: int = 1,
         clip_norm: Optional[float] = 10.0,
         fit_per_element_offset: bool = False,
+        pad_string: str = None,
     ):
         """
         Args:
@@ -156,13 +157,19 @@ class Trainer:
             if val_monitor not in val_metric_names:
                 raise ValueError(f"val_monitor {val_monitor} not in the " f"val_metric_names {val_metric_names}")
 
+            callback_dir = "callbacks"
+            if pad_string is not None:
+                checkpoint_path = os.path.join(callback_dir, f"{pad_string}-{{epoch:05d}}-{{{val_monitor}:.6f}}")
+            else:
+                checkpoint_path = os.path.join(callback_dir, f"{{epoch:05d}}-{{{val_monitor}:.6f}}")
             callbacks.append(
                 tf.keras.callbacks.ModelCheckpoint(
-                    filepath=f"callbacks/{{epoch:05d}}-{{{val_monitor}:.6f}}",
+                    filepath=checkpoint_path,
                     monitor=val_monitor,
                     save_weights_only=True,
                     save_best_only=True,
                     mode=MONITOR_MAPPING[val_monitor],
+                    verbose=verbose,
                 )
             )
 
@@ -282,7 +289,14 @@ class Trainer:
         callback_list.on_train_end()
 
         if save_checkpoint and has_validation:
-            best_model_weights = sorted(glob("callbacks/*.index"), key=os.path.getctime)[-1]
+            if pad_string is not None:
+                best_model_weights = sorted(glob(f"callbacks/{pad_string}*.index"), key=os.path.getctime)[-1]
+            else:
+                best_model_weights = sorted(glob("callbacks/*.index"), key=os.path.getctime)[-1]
             best_model_weights = best_model_weights.rsplit(".", 1)[0]
             self.model.load_weights(best_model_weights)
-            self.model.save("best_model")
+
+            if pad_string is not None:
+                self.model.save(f"best_model_{pad_string}")
+            else:
+                self.model.save("best_model")
